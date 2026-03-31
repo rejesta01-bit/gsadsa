@@ -495,24 +495,14 @@ function Menu.DrawItem(x, itemY, width, itemHeight, item, isSelected)
     local palette = Menu.GetThemePalette()
 
     if item.isSeparator then
-        local lineY = itemY + (itemHeight / 2)
         local label = tostring(item.separatorText or "")
         local labelWidth = Menu.GetTextWidth(label, 11)
-        local chipWidth = labelWidth + (28 * scale)
+        local chipWidth = labelWidth + (24 * scale)
         local chipX = x + (width / 2) - (chipWidth / 2)
-        local leftLineWidth = math.max(0, chipX - x - (16 * scale))
-        local rightLineX = chipX + chipWidth + (10 * scale)
-        local rightLineWidth = math.max(0, (x + width - (16 * scale)) - rightLineX)
+        local chipY = itemY + (itemHeight / 2) - (10 * scale)
 
-        if leftLineWidth > 0 then
-            Menu.DrawRoundedPanel(x + (16 * scale), lineY, leftLineWidth, 1, palette.borderDim, 0.42, 1)
-        end
-        if rightLineWidth > 0 then
-            Menu.DrawRoundedPanel(rightLineX, lineY, rightLineWidth, 1, palette.borderDim, 0.42, 1)
-        end
-
-        Menu.DrawFramedPanel(chipX, itemY + (itemHeight / 2) - (10 * scale), chipWidth, 20 * scale, palette.panelGlass or palette.panel2, 0.92, palette.borderDim, 0.24, 10 * scale, 1)
-        Menu.DrawText(chipX + (14 * scale), itemY + (itemHeight / 2) - (6 * scale), label, 11, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, 0.98)
+        Menu.DrawFramedPanel(chipX, chipY, chipWidth, 20 * scale, palette.panel2, 0.9, palette.borderDim, 0.22, 10 * scale, 1)
+        Menu.DrawText(chipX + (12 * scale), itemY + (itemHeight / 2) - (6 * scale), label, 11, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, 0.96)
         return
     end
 
@@ -523,8 +513,7 @@ function Menu.DrawItem(x, itemY, width, itemHeight, item, isSelected)
     local radius = 10 * scale
 
     if isSelected then
-        Menu.DrawSoftShadow(panelX, panelY, panelW, panelH, radius, 0.24, 8)
-        Menu.DrawRoundedPanel(panelX - (1 * scale), panelY - (1 * scale), panelW + (2 * scale), panelH + (2 * scale), palette.accentGlow or palette.accent, 0.10, radius + (1 * scale))
+        Menu.DrawSoftShadow(panelX, panelY, panelW, panelH, radius, 0.18, 6)
     end
 
     Menu.DrawFramedPanel(
@@ -532,19 +521,16 @@ function Menu.DrawItem(x, itemY, width, itemHeight, item, isSelected)
         panelY,
         panelW,
         panelH,
-        isSelected and (palette.panelGlass or palette.panel3) or palette.panel2,
-        isSelected and 0.98 or 0.82,
+        isSelected and palette.panel3 or palette.panel2,
+        isSelected and 0.96 or 0.84,
         isSelected and palette.accent or palette.borderDim,
-        isSelected and 0.94 or 0.18,
+        isSelected and 0.92 or 0.18,
         radius,
         1
     )
 
-    Menu.DrawGlassHighlight(panelX + 1, panelY + 1, panelW - 2, panelH - 2, radius - 1, isSelected and 0.06 or 0.03)
-
     if isSelected then
         Menu.DrawRoundedPanel(panelX + (1 * scale), panelY + (1 * scale), 4 * scale, panelH - (2 * scale), palette.accent, 1.0, 3 * scale)
-        Menu.DrawRoundedPanel(panelX + (1 * scale), panelY + (1 * scale), panelW - (2 * scale), math.max(2 * scale, panelH * 0.15), palette.accentGlow or palette.accent, 0.07, 8 * scale)
     end
 
     local labelX = panelX + (16 * scale)
@@ -564,7 +550,7 @@ function Menu.DrawItem(x, itemY, width, itemHeight, item, isSelected)
     elseif item.type == "toggle_selector" then
         Menu.DrawToggleSwitch(panelX + panelW - (48 * scale), panelY + (panelH / 2) - (10 * scale), item.value == true)
     elseif item.type == "action" then
-        local hint = "›"
+        local hint = ">"
         local hintW = Menu.GetTextWidth(hint, 16)
         Menu.DrawText(panelX + panelW - hintW - (14 * scale), labelY - (1 * scale), hint, 16, palette.soft.r / 255.0, palette.soft.g / 255.0, palette.soft.b / 255.0, 0.9)
     end
@@ -1803,7 +1789,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
     local p = Menu.ParticleLoops or {}
     return {
         {
-            name = "↩ Back To Player Actions",
+            name = "Back To Player Actions",
             type = "action",
             onClick = function()
                 Menu.PlayerList.submenu = nil
@@ -1812,7 +1798,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
         },
         { isSeparator = true, separatorText = "PARTICLE EFFECTS" },
         {
-            name = "🔥 Molotov Particles Loop",
+            name = "Molotov Particles Loop",
             type = "toggle",
             value = p.Molotov and p.Molotov.enabled or false,
             onClick = function()
@@ -1821,7 +1807,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
             end
         },
         {
-            name = "🎆 Firework Particles Loop",
+            name = "Firework Particles Loop",
             type = "toggle",
             value = p.Firework and p.Firework.enabled or false,
             onClick = function()
@@ -1830,7 +1816,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
             end
         },
         {
-            name = "✨ Firework 2 Particles Loop",
+            name = "Firework 2 Particles Loop",
             type = "toggle",
             value = p.Firework2 and p.Firework2.enabled or false,
             onClick = function()
@@ -1839,7 +1825,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
             end
         },
         {
-            name = "💨 Smoke Particles Loop",
+            name = "Smoke Particles Loop",
             type = "toggle",
             value = p.Smoke and p.Smoke.enabled or false,
             onClick = function()
@@ -1848,7 +1834,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
             end
         },
         {
-            name = "✝ Jesus Light Particles Loop",
+            name = "Jesus Light Particles Loop",
             type = "toggle",
             value = p.JesusLight and p.JesusLight.enabled or false,
             onClick = function()
@@ -1857,7 +1843,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
             end
         },
         {
-            name = "👽 Alien Light Particles Loop",
+            name = "Alien Light Particles Loop",
             type = "toggle",
             value = p.AlienLight and p.AlienLight.enabled or false,
             onClick = function()
@@ -1866,7 +1852,7 @@ function Menu.BuildParticleLoopItems(selectedPlayer)
             end
         },
         {
-            name = "💥 Huge Explosion Loop",
+            name = "Huge Explosion Loop",
             type = "toggle",
             value = p.HugeExplosion and p.HugeExplosion.enabled or false,
             onClick = function()
@@ -4139,8 +4125,8 @@ function Menu.EnsureOnlineCategoryInList(categoryList)
                 if tab and tostring(tab.name or "") == "Players" then
                     foundPlayers = true
                     tab.items = tab.items or {
-                        { name = "🔍 Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
-                        { name = "🧹 Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
+                        { name = "Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
+                        { name = "Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
                         { isSeparator = true, separatorText = "ONLINE PLAYERS" },
                         { name = "Loading...", type = "action", onClick = function() end }
                     }
@@ -4150,8 +4136,8 @@ function Menu.EnsureOnlineCategoryInList(categoryList)
                 table.insert(cat.tabs, {
                     name = "Players",
                     items = {
-                        { name = "🔍 Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
-                        { name = "🧹 Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
+                        { name = "Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
+                        { name = "Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
                         { isSeparator = true, separatorText = "ONLINE PLAYERS" },
                         { name = "Loading...", type = "action", onClick = function() end }
                     }
@@ -4168,8 +4154,8 @@ function Menu.EnsureOnlineCategoryInList(categoryList)
             {
                 name = "Players",
                 items = {
-                    { name = "🔍 Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
-                    { name = "🧹 Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
+                    { name = "Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
+                    { name = "Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
                     { isSeparator = true, separatorText = "ONLINE PLAYERS" },
                     { name = "Loading...", type = "action", onClick = function() end }
                 }
@@ -4497,14 +4483,14 @@ function Menu.RefreshOnlinePlayers()
 
             items = {
                 {
-                    name = "↩ Back To Player List",
+                    name = "Back To Player List",
                     type = "action",
                     onClick = function()
                         Menu.ClosePlayerInfo()
                     end
                 },
                 {
-                    name = "🔄 Refresh Selected Player",
+                    name = "Refresh Selected Player",
                     type = "action",
                     onClick = function()
                         Menu.RefreshOnlinePlayers()
@@ -4523,7 +4509,7 @@ function Menu.RefreshOnlinePlayers()
                     separatorText = "PLAYER ACTIONS"
                 },
                 {
-                    name = "📍 Teleport To Player",
+                    name = "Teleport To Player",
                     type = "action",
                     onClick = function()
                         Menu.TeleportToPlayer(selectedPlayer)
@@ -4534,14 +4520,14 @@ function Menu.RefreshOnlinePlayers()
                     separatorText = "ATTACKS"
                 },
                 {
-                    name = "😈 Troll Player",
+                    name = "Troll Player",
                     type = "action",
                     onClick = function()
                         Menu.TrollPlayer(selectedPlayer)
                     end
                 },
                 {
-                    name = "🔫 Gun NPC Attack",
+                    name = "Gun NPC Attack",
                     type = "action",
                     onClick = function()
                         Menu.GunNPCAttackPlayer(selectedPlayer)
@@ -4552,42 +4538,42 @@ function Menu.RefreshOnlinePlayers()
                     separatorText = "VEHICLE CHAOS"
                 },
                 {
-                    name = "🪜 Ramp All Vehicles",
+                    name = "Ramp All Vehicles",
                     type = "action",
                     onClick = function()
                         Menu.RampAllVehicles()
                     end
                 },
                 {
-                    name = "🏢 FIB Building All Vehicles",
+                    name = "FIB Building All Vehicles",
                     type = "action",
                     onClick = function()
                         Menu.FIBAllVehicles()
                     end
                 },
                 {
-                    name = "🧲 Magnet Cars",
+                    name = "Magnet Cars",
                     type = "action",
                     onClick = function()
                         Menu.MagnetCars()
                     end
                 },
                 {
-                    name = "🚗 Flip All Vehicles",
+                    name = "Flip All Vehicles",
                     type = "action",
                     onClick = function()
                         Menu.FlipAllVehicles()
                     end
                 },
                 {
-                    name = "🌪 Spin Cars Tornado",
+                    name = "Spin Cars Tornado",
                     type = "action",
                     onClick = function()
                         Menu.SpinCarsTornado()
                     end
                 },
                 {
-                    name = "🔥 Particle Effects On Player",
+                    name = "Particle Effects On Player",
                     type = "action",
                     onClick = function()
                         Menu.PlayerList.submenu = "particleeffects"
@@ -4603,42 +4589,42 @@ function Menu.RefreshOnlinePlayers()
                     end
                 },
                 {
-                    name = "💀 HEX Player",
+                    name = "HEX Player",
                     type = "action",
                     onClick = function()
                         Menu.HEXPlayer(selectedPlayer)
                     end
                 },
                 {
-                    name = "🚀 Launch Player",
+                    name = "Launch Player",
                     type = "action",
                     onClick = function()
                         Menu.LaunchPlayer(selectedPlayer)
                     end
                 },
                 {
-                    name = "👥 Clone NPC Attack",
+                    name = "Clone NPC Attack",
                     type = "action",
                     onClick = function()
                         Menu.CloneNPCAttackPlayer(selectedPlayer)
                     end
                 },
                 {
-                    name = "❄ Freeze Player",
+                    name = "Freeze Player",
                     type = "action",
                     onClick = function()
                         Menu.FreezePlayer(selectedPlayer)
                     end
                 },
                 {
-                    name = "🚘 Vehicle Rain On Player",
+                    name = "Vehicle Rain On Player",
                     type = "action",
                     onClick = function()
                         Menu.VehicleRainOnPlayer(selectedPlayer)
                     end
                 },
                 {
-                    name = "📦 Cage Player",
+                    name = "Cage Player",
                     type = "action",
                     onClick = function()
                         Menu.CagePlayer(selectedPlayer)
@@ -4652,7 +4638,7 @@ function Menu.RefreshOnlinePlayers()
                     end
                 },
                 {
-                    name = "👤 Toggle HEX Include Self",
+                    name = "Toggle HEX Include Self",
                     type = "toggle",
                     value = Menu.HexAllIncludeSelf,
                     onClick = function(value)
@@ -4667,14 +4653,14 @@ function Menu.RefreshOnlinePlayers()
 
         items = {
             {
-                name = "🔍 Search Players",
+                name = "Search Players",
                 type = "action",
                 onClick = function()
                     Menu.OpenPlayerSearch()
                 end
             },
             {
-                name = "🧹 Clear Search",
+                name = "Clear Search",
                 type = "action",
                 onClick = function()
                     Menu.PlayerList.searchQuery = ""
