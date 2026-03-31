@@ -1,0 +1,2002 @@
+local Menu = {}
+Menu.Visible = false
+Menu.CurrentCategory = 2
+Menu.CurrentPage = 1
+Menu.ItemsPerPage = 9
+Menu.scrollbarY = nil
+Menu.scrollbarHeight = nil
+Menu.OpenedCategory = nil
+Menu.CurrentItem = 1
+Menu.CurrentTab = 1
+Menu.ItemScrollOffset = 0
+Menu.CategoryScrollOffset = 0
+Menu.EditorDragging = false
+Menu.EditorDragOffsetX = 0
+Menu.EditorDragOffsetY = 0
+Menu.EditorMode = false
+Menu.ShowSnowflakes = false
+Menu.SelectorY = 0
+Menu.CategorySelectorY = 0
+Menu.TabSelectorX = 0
+Menu.TabSelectorWidth = 0
+Menu.SmoothFactor = 0.2
+Menu.GradientType = 1
+Menu.ScrollbarPosition = 1
+
+Menu.LoadingBarAlpha = 0.0
+Menu.KeySelectorAlpha = 0.0
+Menu.KeybindsInterfaceAlpha = 0.0
+
+Menu.LoadingProgress = 0.0
+Menu.IsLoading = true
+Menu.LoadingComplete = false
+Menu.LoadingStartTime = nil
+Menu.LoadingDuration = 3000
+
+Menu.SelectingKey = false
+Menu.SelectedKey = nil
+Menu.SelectedKeyName = nil
+
+Menu.SelectingBind = false
+Menu.BindingItem = nil
+Menu.BindingKey = nil
+Menu.BindingKeyName = nil
+
+Menu.ShowKeybinds = false
+
+
+Menu.CurrentTopTab = 1
+function Menu.UpdateCategoriesFromTopTab()
+    if not Menu.TopLevelTabs then return end
+    local currentTop = Menu.TopLevelTabs[Menu.CurrentTopTab]
+    if not currentTop then return end
+
+    Menu.Categories = {}
+    table.insert(Menu.Categories, { name = currentTop.name })
+    for _, cat in ipairs(currentTop.categories) do
+        table.insert(Menu.Categories, cat)
+    end
+    
+    Menu.CurrentCategory = 2
+    Menu.CategoryScrollOffset = 0
+    Menu.OpenedCategory = nil
+    
+    if currentTop.autoOpen then
+        Menu.OpenedCategory = 2
+        Menu.CurrentTab = 1
+        Menu.ItemScrollOffset = 0
+        Menu.CurrentItem = 1
+    end
+end
+
+Menu.Banner = {
+    enabled = true,
+    imageUrl = "https://i.imgur.com/cOFPinI.gif",
+    height = 100
+}
+
+Menu.bannerTexture = nil
+Menu.bannerWidth = 0
+Menu.bannerHeight = 0
+
+function Menu.LoadBannerTexture(url)
+    if not url or url == "" then return end
+    if not Susano or not Susano.HttpGet or not Susano.LoadTextureFromBuffer then return end
+
+    if CreateThread then
+        CreateThread(function()
+            local success, result = pcall(function()
+                local status, body = Susano.HttpGet(url)
+                if status == 200 and body and #body > 0 then
+                    local textureId, width, height = Susano.LoadTextureFromBuffer(body)
+                    if textureId and textureId ~= 0 then
+                        Menu.bannerTexture = textureId
+                        Menu.bannerWidth = width
+                        Menu.bannerHeight = height
+                        return textureId
+                    end
+                end
+                return nil
+            end)
+            if not success then
+            end
+        end)
+    else
+        local success, result = pcall(function()
+            local status, body = Susano.HttpGet(url)
+            if status == 200 and body and #body > 0 then
+                local textureId, width, height = Susano.LoadTextureFromBuffer(body)
+                if textureId and textureId ~= 0 then
+                    Menu.bannerTexture = textureId
+                    Menu.bannerWidth = width
+                    Menu.bannerHeight = height
+                    print("Banner texture loaded successfully")
+                    return textureId
+                end
+            end
+            return nil
+        end)
+        if not success then
+        end
+    end
+end
+
+Menu.Colors = {
+    HeaderPink = { r = 148, g = 0, b = 211 },
+    SelectedBg = { r = 148, g = 0, b = 211 },
+    TextWhite = { r = 255, g = 255, b = 255 },
+    BackgroundDark = { r = 0, g = 0, b = 0 },
+    FooterBlack = { r = 0, g = 0, b = 0 }
+}
+
+Menu.CurrentTheme = "Purple"
+
+function Menu.ApplyTheme(themeName)
+    if not themeName or type(themeName) ~= "string" then
+        themeName = "Purple"
+    end
+    
+
+    local themeLower = string.lower(themeName)
+    Menu.CurrentTheme = themeName
+    
+    if themeLower == "red" then
+        Menu.Colors.HeaderPink = { r = 255, g = 0, b = 0 }
+        Menu.Colors.SelectedBg = { r = 255, g = 0, b = 0 }
+        Menu.Banner.imageUrl = "https://i.imgur.com/cOFPinI.gif"
+        Menu.CurrentTheme = "Red"
+    elseif themeLower == "purple" then
+        Menu.Colors.HeaderPink = { r = 148, g = 0, b = 211 }
+        Menu.Colors.SelectedBg = { r = 148, g = 0, b = 211 }
+        Menu.Banner.imageUrl = "https://i.imgur.com/8wGWjBh.png"
+        Menu.CurrentTheme = "Purple"
+    elseif themeLower == "gray" then
+        Menu.Colors.HeaderPink = { r = 128, g = 128, b = 128 }
+        Menu.Colors.SelectedBg = { r = 128, g = 128, b = 128 }
+        Menu.Banner.imageUrl = "https://i.imgur.com/iZnBhaR.jpeg"
+        Menu.CurrentTheme = "Gray"
+    elseif themeLower == "pink" then
+        Menu.Colors.HeaderPink = { r = 255, g = 20, b = 147 }
+        Menu.Colors.SelectedBg = { r = 255, g = 20, b = 147 }
+        Menu.Banner.imageUrl = "https://i.imgur.com/BbABj2n.png"
+        Menu.CurrentTheme = "pink"
+    else
+        Menu.Colors.HeaderPink = { r = 148, g = 0, b = 211 }
+        Menu.Colors.SelectedBg = { r = 148, g = 0, b = 211 }
+        Menu.Banner.imageUrl = "https://i.imgur.com/8wGWjBh.png"
+        Menu.CurrentTheme = "Purple"
+    end
+
+    if Menu.Banner.enabled and Menu.Banner.imageUrl then
+        Menu.LoadBannerTexture(Menu.Banner.imageUrl)
+    end
+end
+
+Menu.Position = {
+    x = 50,
+    y = 100,
+    width = 430,
+    itemHeight = 40,
+    mainMenuHeight = 36,
+    headerHeight = 122,
+    footerHeight = 32,
+    footerSpacing = 10,
+    mainMenuSpacing = 10,
+    footerRadius = 10,
+    itemRadius = 10,
+    scrollbarWidth = 12,
+    scrollbarPadding = 3,
+    headerRadius = 14
+}
+Menu.Scale = 1.0
+
+function Menu.GetScaledPosition()
+    local scale = Menu.Scale or 1.0
+    return {
+        x = Menu.Position.x,
+        y = Menu.Position.y,
+        width = Menu.Position.width * scale,
+        itemHeight = Menu.Position.itemHeight * scale,
+        mainMenuHeight = Menu.Position.mainMenuHeight * scale,
+        headerHeight = Menu.Position.headerHeight * scale,
+        footerHeight = Menu.Position.footerHeight * scale,
+        footerSpacing = Menu.Position.footerSpacing * scale,
+        mainMenuSpacing = Menu.Position.mainMenuSpacing * scale,
+        footerRadius = Menu.Position.footerRadius * scale,
+        itemRadius = Menu.Position.itemRadius * scale,
+        scrollbarWidth = Menu.Position.scrollbarWidth * scale,
+        scrollbarPadding = Menu.Position.scrollbarPadding * scale,
+        headerRadius = Menu.Position.headerRadius * scale
+    }
+end
+
+function Menu.DrawRect(x, y, width, height, r, g, b, a)
+    a = a or 1.0
+    r = r or 1.0
+    g = g or 1.0
+    b = b or 1.0
+
+    if r > 1.0 then r = r / 255.0 end
+    if g > 1.0 then g = g / 255.0 end
+    if b > 1.0 then b = b / 255.0 end
+    if a > 1.0 then a = a / 255.0 end
+
+    if Susano.DrawFilledRect then
+        Susano.DrawFilledRect(x, y, width, height, r, g, b, a)
+    elseif Susano.FillRect then
+        Susano.FillRect(x, y, width, height, r, g, b, a)
+    elseif Susano.DrawRect then
+        for i = 0, height - 1 do
+            Susano.DrawRect(x, y + i, width, 1, r, g, b, a)
+        end
+    end
+end
+
+function Menu.DrawText(x, y, text, size_px, r, g, b, a)
+    local scale = Menu.Scale or 1.0
+    size_px = (size_px or 16) * scale
+    r = r or 1.0
+    g = g or 1.0
+    b = b or 1.0
+    a = a or 1.0
+
+    if r > 1.0 then r = r / 255.0 end
+    if g > 1.0 then g = g / 255.0 end
+    if b > 1.0 then b = b / 255.0 end
+    if a > 1.0 then a = a / 255.0 end
+
+    Susano.DrawText(x, y, text, size_px, r, g, b, a)
+end
+
+function Menu.DrawHeader()
+    local scaledPos = Menu.GetScaledPosition()
+    local scale = Menu.Scale or 1.0
+    local x = scaledPos.x
+    local y = scaledPos.y
+    local width = scaledPos.width - 1
+    local height = scaledPos.headerHeight
+    local radius = scaledPos.headerRadius
+    local bannerHeight = Menu.Banner.height * scale
+
+    if Menu.Banner.enabled then
+        if Menu.bannerTexture and Menu.bannerTexture > 0 and Susano and Susano.DrawImage then
+            
+            Susano.DrawImage(Menu.bannerTexture, x, y, width, bannerHeight, 1, 1, 1, 1, 0)
+        else
+            Menu.DrawRect(x, y, width, height, Menu.Colors.HeaderPink.r, Menu.Colors.HeaderPink.g, Menu.Colors.HeaderPink.b, 255)
+
+            local logoX = x + width / 2 - 12
+            local logoY = y + height / 2 - 20
+            Menu.DrawText(logoX, logoY, "P", 44, 1.0, 1.0, 1.0, 1.0)
+        end
+    else
+        Menu.DrawRect(x, y, width, height, Menu.Colors.HeaderPink.r, Menu.Colors.HeaderPink.g, Menu.Colors.HeaderPink.b, 255)
+
+        local logoX = x + width / 2 - 12
+        local logoY = y + height / 2 - 20
+        Menu.DrawText(logoX, logoY, "P", 44, 1.0, 1.0, 1.0, 1.0)
+    end
+end
+
+function Menu.DrawScrollbar(x, startY, visibleHeight, selectedIndex, totalItems, isMainMenu, menuWidth)
+    if totalItems < 1 then
+        return
+    end
+
+    local scaledPos = Menu.GetScaledPosition()
+    local scrollbarWidth = scaledPos.scrollbarWidth
+    local scrollbarPadding = scaledPos.scrollbarPadding
+    local width = menuWidth or scaledPos.width
+
+    local scrollbarX
+    if Menu.ScrollbarPosition == 2 then
+        scrollbarX = x + width + scrollbarPadding
+    else
+        scrollbarX = x - scrollbarWidth - scrollbarPadding
+    end
+
+    local scrollbarY = startY
+    local scrollbarHeight = visibleHeight
+
+    local adjustedIndex = selectedIndex
+    if isMainMenu then
+        adjustedIndex = selectedIndex - 1
+    end
+
+
+    local thumbHeight = scrollbarHeight  
+    local thumbY
+    
+    if totalItems <= Menu.ItemsPerPage then
+ 
+        thumbY = scrollbarY
+    else
+  
+        local scrollOffset = 0
+        if not isMainMenu and Menu.ItemScrollOffset then
+            scrollOffset = Menu.ItemScrollOffset
+        elseif isMainMenu and Menu.CategoryScrollOffset then
+            scrollOffset = Menu.CategoryScrollOffset
+        end
+        
+        local totalScrollable = totalItems - Menu.ItemsPerPage
+        local scrollProgress = scrollOffset / math.max(1, totalScrollable)
+        scrollProgress = math.min(1.0, math.max(0.0, scrollProgress))
+        
+      
+        local maxThumbY = scrollbarY + scrollbarHeight - thumbHeight
+        thumbY = scrollbarY + scrollProgress * (scrollbarHeight - thumbHeight)
+        thumbY = math.max(scrollbarY, math.min(maxThumbY, thumbY))
+    end
+
+    if not Menu.scrollbarY then
+        Menu.scrollbarY = thumbY
+    end
+    if not Menu.scrollbarHeight then
+        Menu.scrollbarHeight = thumbHeight
+    end
+
+    local smoothSpeed = 0.15
+    Menu.scrollbarY = Menu.scrollbarY + (thumbY - Menu.scrollbarY) * smoothSpeed
+    Menu.scrollbarHeight = Menu.scrollbarHeight + (thumbHeight - Menu.scrollbarHeight) * smoothSpeed
+
+    local thumbPadding = 2
+    local bgR = (Menu.Colors.SelectedBg and Menu.Colors.SelectedBg.r) and (Menu.Colors.SelectedBg.r / 255.0) or 1.0
+    local bgG = (Menu.Colors.SelectedBg and Menu.Colors.SelectedBg.g) and (Menu.Colors.SelectedBg.g / 255.0) or 0.0
+    local bgB = (Menu.Colors.SelectedBg and Menu.Colors.SelectedBg.b) and (Menu.Colors.SelectedBg.b / 255.0) or 1.0
+    
+    
+    if Susano and Susano.DrawRectFilled then
+      
+        Susano.DrawRectFilled(scrollbarX + thumbPadding - 1, Menu.scrollbarY + thumbPadding - 1,
+            scrollbarWidth - (thumbPadding * 2) + 2, Menu.scrollbarHeight - (thumbPadding * 2) + 2,
+            bgR * 0.3, bgG * 0.3, bgB * 0.3, 0.4,
+            (scrollbarWidth - (thumbPadding * 2) + 2) / 2)
+       
+        Susano.DrawRectFilled(scrollbarX + thumbPadding, Menu.scrollbarY + thumbPadding,
+            scrollbarWidth - (thumbPadding * 2), Menu.scrollbarHeight - (thumbPadding * 2),
+            bgR, bgG, bgB, 1.0,
+            (scrollbarWidth - (thumbPadding * 2)) / 2)
+    else
+    
+        Menu.DrawRoundedRect(scrollbarX + thumbPadding - 1, Menu.scrollbarY + thumbPadding - 1,
+            scrollbarWidth - (thumbPadding * 2) + 2, Menu.scrollbarHeight - (thumbPadding * 2) + 2,
+            math.floor(bgR * 0.3 * 255), math.floor(bgG * 0.3 * 255), math.floor(bgB * 0.3 * 255), 102,
+            (scrollbarWidth - (thumbPadding * 2) + 2) / 2)
+     
+        Menu.DrawRoundedRect(scrollbarX + thumbPadding, Menu.scrollbarY + thumbPadding,
+            scrollbarWidth - (thumbPadding * 2), Menu.scrollbarHeight - (thumbPadding * 2),
+            bgR * 255, bgG * 255, bgB * 255, 255,
+            (scrollbarWidth - (thumbPadding * 2)) / 2)
+    end
+end
+
+function Menu.DrawTabs(category, x, startY, width, tabHeight)
+    if not category or not category.hasTabs or not category.tabs then
+        return
+    end
+
+    local scale = Menu.Scale or 1.0
+    local palette = Menu.GetThemePalette()
+    local count = #category.tabs
+    if count <= 0 then return end
+
+    local inset = 8 * scale
+    local gap = 7 * scale
+    local usableWidth = width - (inset * 2) - (gap * (count - 1))
+    local tabWidth = usableWidth / count
+    local pillHeight = tabHeight - (6 * scale)
+
+    for i, tab in ipairs(category.tabs) do
+        local tabX = x + inset + ((i - 1) * (tabWidth + gap))
+        local tabY = startY + (3 * scale)
+        local isSelected = (i == Menu.CurrentTab)
+
+        if isSelected then
+            Menu.DrawSoftShadow(tabX, tabY, tabWidth, pillHeight, 10 * scale, 0.22, 7)
+        end
+
+        Menu.DrawFramedPanel(
+            tabX,
+            tabY,
+            tabWidth,
+            pillHeight,
+            isSelected and (palette.panelGlass or palette.panel3) or palette.panel2,
+            isSelected and 0.97 or 0.78,
+            isSelected and palette.accentGlow or palette.borderDim,
+            isSelected and 0.92 or 0.18,
+            10 * scale,
+            1
+        )
+
+        if isSelected then
+            Menu.DrawRoundedPanel(tabX + 1, tabY + 1, tabWidth - 2, math.max(6, pillHeight * 0.42), palette.white, 0.04, 10 * scale)
+        end
+
+        local labelWidth = Menu.GetTextWidth(tab.name or "", 13)
+        local textX = tabX + (tabWidth / 2) - (labelWidth / 2)
+        local textY = tabY + (pillHeight / 2) - (7 * scale)
+        local textColor = isSelected and palette.text or palette.muted
+
+        Menu.DrawText(textX, textY, tab.name or "", 13, textColor.r / 255.0, textColor.g / 255.0, textColor.b / 255.0, 0.99)
+    end
+end
+
+function Menu.DrawToggleSwitch(x, y, value)
+    local scale = Menu.Scale or 1.0
+    local palette = Menu.GetThemePalette()
+    local width = 40 * scale
+    local height = 20 * scale
+    local trackColor = value and palette.accent or palette.track
+    local knobSize = height - (4 * scale)
+    local knobX = value and (x + width - knobSize - (2 * scale)) or (x + (2 * scale))
+
+    Menu.DrawFramedPanel(x, y, width, height, trackColor, value and 0.92 or 0.72, palette.borderDim, value and 0.35 or 0.18, height / 2, 1)
+    Menu.DrawRoundedPanel(knobX, y + (2 * scale), knobSize, knobSize, palette.white, value and 1.0 or 0.95, knobSize / 2)
+    if value then
+        Menu.DrawRoundedPanel(knobX + (2 * scale), y + (3 * scale), knobSize - (4 * scale), math.max(2 * scale, knobSize * 0.30), palette.white, 0.18, (knobSize / 2) - (2 * scale))
+    end
+    return width, height
+end
+
+function Menu.DrawSliderControl(x, centerY, width, percent, showValue, valueText)
+    local scale = Menu.Scale or 1.0
+    local palette = Menu.GetThemePalette()
+    local sliderHeight = 8 * scale
+    local sliderY = centerY - (sliderHeight / 2)
+    local clamped = uiClamp(percent or 0.0, 0.0, 1.0)
+    local fillWidth = width * clamped
+    local thumbSize = 12 * scale
+    local thumbX = x + fillWidth - (thumbSize / 2)
+
+    Menu.DrawRoundedPanel(x, sliderY, width, sliderHeight, palette.track, 0.82, sliderHeight / 2)
+    if fillWidth > 0 then
+        Menu.DrawRoundedPanel(x, sliderY, math.max(thumbSize / 2, fillWidth), sliderHeight, palette.accent, 0.95, sliderHeight / 2)
+    end
+    Menu.DrawRoundedPanel(thumbX, centerY - (thumbSize / 2), thumbSize, thumbSize, palette.white, 1.0, thumbSize / 2)
+
+    if showValue and valueText then
+        Menu.DrawText(x + width + (10 * scale), centerY - (6 * scale), valueText, 10, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, 0.98)
+    end
+end
+
+function Menu.DrawSelectorPill(rightX, centerY, text, selected)
+    local scale = Menu.Scale or 1.0
+    local palette = Menu.GetThemePalette()
+    local pillHeight = 22 * scale
+    local paddingX = 10 * scale
+    local pillWidth = Menu.GetTextWidth(text, 12) + (paddingX * 2)
+    local pillX = rightX - pillWidth
+    local pillY = centerY - (pillHeight / 2)
+
+    Menu.DrawFramedPanel(
+        pillX,
+        pillY,
+        pillWidth,
+        pillHeight,
+        selected and palette.panel3 or palette.panel2,
+        selected and 0.90 or 0.78,
+        selected and palette.accent or palette.borderDim,
+        selected and 0.50 or 0.18,
+        pillHeight / 2,
+        1
+    )
+
+    Menu.DrawText(pillX + paddingX, pillY + (pillHeight / 2) - (6 * scale), text, 12, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, 0.98)
+    return pillX - (10 * scale), pillWidth
+end
+
+function Menu.DrawItem(x, itemY, width, itemHeight, item, isSelected)
+    local scale = Menu.Scale or 1.0
+    local palette = Menu.GetThemePalette()
+
+    if item.isSeparator then
+        local lineY = itemY + (itemHeight / 2)
+        local label = tostring(item.separatorText or "")
+        local labelWidth = Menu.GetTextWidth(label, 11)
+        local chipWidth = labelWidth + (26 * scale)
+        local chipX = x + (width / 2) - (chipWidth / 2)
+        local leftLineWidth = math.max(0, chipX - x - (16 * scale))
+        local rightLineX = chipX + chipWidth + (10 * scale)
+        local rightLineWidth = math.max(0, (x + width - (16 * scale)) - rightLineX)
+
+        if leftLineWidth > 0 then
+            Menu.DrawRoundedPanel(x + (16 * scale), lineY, leftLineWidth, 1, palette.borderDim, 0.50, 1)
+        end
+        if rightLineWidth > 0 then
+            Menu.DrawRoundedPanel(rightLineX, lineY, rightLineWidth, 1, palette.borderDim, 0.50, 1)
+        end
+
+        Menu.DrawFramedPanel(chipX, itemY + (itemHeight / 2) - (10 * scale), chipWidth, 20 * scale, palette.panelGlass or palette.panel2, 0.90, palette.borderDim, 0.22, 10 * scale, 1)
+        Menu.DrawText(chipX + (13 * scale), itemY + (itemHeight / 2) - (6 * scale), label, 11, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, 0.98)
+        return
+    end
+
+    local panelX = x + (8 * scale)
+    local panelY = itemY + (2 * scale)
+    local panelW = width - (16 * scale)
+    local panelH = itemHeight - (4 * scale)
+    local radius = 10 * scale
+
+    if isSelected then
+        Menu.DrawSoftShadow(panelX, panelY, panelW, panelH, radius, 0.22, 8)
+    end
+
+    Menu.DrawFramedPanel(
+        panelX,
+        panelY,
+        panelW,
+        panelH,
+        isSelected and (palette.panelGlass or palette.panel3) or palette.panel2,
+        isSelected and 0.96 or 0.80,
+        isSelected and palette.accentGlow or palette.borderDim,
+        isSelected and 0.95 or 0.16,
+        radius,
+        1
+    )
+
+    if isSelected then
+        Menu.DrawRoundedPanel(panelX + (1 * scale), panelY + (1 * scale), 4 * scale, panelH - (2 * scale), palette.accent, 1.0, 3 * scale)
+        Menu.DrawRoundedPanel(panelX + 2 * scale, panelY + 2 * scale, panelW - 4 * scale, math.max(7 * scale, panelH * 0.36), palette.white, 0.035, radius)
+    end
+
+    local textX = panelX + (16 * scale)
+    local textY = panelY + (panelH / 2) - (7 * scale)
+    local textColor = palette.text
+    Menu.DrawText(textX, textY, tostring(item.name or ""), 13, textColor.r / 255.0, textColor.g / 255.0, textColor.b / 255.0, 0.99)
+
+    if item.type == "toggle" then
+        Menu.DrawToggleSwitch(panelX + panelW - (52 * scale), panelY + (panelH / 2) - (10 * scale), item.value == true)
+    elseif item.type == "action" then
+        local label = "OPEN"
+        local badgeW = Menu.GetTextWidth(label, 10) + (18 * scale)
+        local badgeX = panelX + panelW - badgeW - (12 * scale)
+        local badgeY = panelY + (panelH / 2) - (9 * scale)
+        Menu.DrawFramedPanel(badgeX, badgeY, badgeW, 18 * scale, palette.panel4, 0.96, isSelected and palette.accentGlow or palette.borderDim, isSelected and 0.55 or 0.18, 9 * scale, 1)
+        Menu.DrawText(badgeX + (badgeW / 2) - (Menu.GetTextWidth(label, 10) / 2), badgeY + (9 * scale) - (5 * scale), label, 10, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, 0.95)
+    elseif item.type == "selector" and item.options then
+        local selectedIndex = item.selected or 1
+        local selectedOption = tostring(item.options[selectedIndex] or "")
+        local valueW = Menu.GetTextWidth(selectedOption, 11) + (26 * scale)
+        local valueX = panelX + panelW - valueW - (12 * scale)
+        local valueY = panelY + (panelH / 2) - (10 * scale)
+        Menu.DrawFramedPanel(valueX, valueY, valueW, 20 * scale, palette.panel4, 0.96, isSelected and palette.accentGlow or palette.borderDim, isSelected and 0.50 or 0.18, 10 * scale, 1)
+        Menu.DrawText(valueX + (valueW / 2) - (Menu.GetTextWidth(selectedOption, 11) / 2), valueY + (10 * scale) - (6 * scale), selectedOption, 11, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, 0.96)
+    end
+end
+
+function Menu.DrawCategories()
+    local bounds = Menu.GetMenuBounds()
+    local scaledPos = Menu.GetScaledPosition()
+    local scale = Menu.Scale or 1.0
+    local x = bounds.x
+    local width = bounds.width
+    local itemHeight = scaledPos.itemHeight
+    local maxVisible = Menu.ItemsPerPage
+
+    if Menu.OpenedCategory then
+        local category = Menu.Categories and Menu.Categories[Menu.OpenedCategory] or nil
+        if not category or not category.tabs or not category.tabs[Menu.CurrentTab] then
+            Menu.OpenedCategory = nil
+            return
+        end
+
+        Menu.DrawTabs(category, x, bounds.barY, width, bounds.barHeight)
+
+        local currentTab = category.tabs[Menu.CurrentTab]
+        local items = currentTab.items or {}
+        local totalItems = #items
+
+        if Menu.CurrentItem > Menu.ItemScrollOffset + maxVisible then
+            Menu.ItemScrollOffset = Menu.CurrentItem - maxVisible
+        elseif Menu.CurrentItem <= Menu.ItemScrollOffset then
+            Menu.ItemScrollOffset = math.max(0, Menu.CurrentItem - 1)
+        end
+
+        local visibleCount = 0
+        for displayIndex = 1, math.min(maxVisible, totalItems) do
+            local itemIndex = displayIndex + Menu.ItemScrollOffset
+            if itemIndex <= totalItems then
+                visibleCount = visibleCount + 1
+                local drawY = bounds.itemsY + ((displayIndex - 1) * itemHeight)
+                local item = items[itemIndex]
+                Menu.DrawItem(x, drawY, width, itemHeight, item, itemIndex == Menu.CurrentItem)
+            end
+        end
+
+        if totalItems > 0 then
+            Menu.DrawScrollbar(x, bounds.itemsY, visibleCount * itemHeight, Menu.CurrentItem, totalItems, false, width)
+        end
+        return
+    end
+
+    Menu.DrawTopLevelTabs(x, bounds.barY, width, bounds.barHeight)
+
+    local totalCategories = math.max(0, (Menu.Categories and #Menu.Categories or 0) - 1)
+
+    if Menu.CurrentCategory > Menu.CategoryScrollOffset + maxVisible + 1 then
+        Menu.CategoryScrollOffset = Menu.CurrentCategory - maxVisible - 1
+    elseif Menu.CurrentCategory <= Menu.CategoryScrollOffset + 1 then
+        Menu.CategoryScrollOffset = math.max(0, Menu.CurrentCategory - 2)
+    end
+
+    local palette = Menu.GetThemePalette()
+    local visibleCount = 0
+
+    for displayIndex = 1, math.min(maxVisible, totalCategories) do
+        local categoryIndex = displayIndex + Menu.CategoryScrollOffset + 1
+        if categoryIndex <= #Menu.Categories then
+            visibleCount = visibleCount + 1
+            local drawY = bounds.itemsY + ((displayIndex - 1) * itemHeight)
+            local panelX = x + (6 * scale)
+            local panelY = drawY + (2 * scale)
+            local panelW = width - (12 * scale)
+            local panelH = itemHeight - (4 * scale)
+            local selected = (categoryIndex == Menu.CurrentCategory)
+
+            if selected then
+                Menu.DrawSoftShadow(panelX, panelY, panelW, panelH, 9 * scale, 0.18, 6)
+            end
+
+            Menu.DrawFramedPanel(
+                panelX,
+                panelY,
+                panelW,
+                panelH,
+                selected and palette.panel3 or palette.panel2,
+                selected and 0.94 or 0.78,
+                selected and palette.accent or palette.borderDim,
+                selected and 0.92 or 0.16,
+                9 * scale,
+                1
+            )
+
+            if selected then
+                Menu.DrawRoundedPanel(panelX + (1 * scale), panelY + (1 * scale), 4 * scale, panelH - (2 * scale), palette.accent, 1.0, 3 * scale)
+            end
+
+            local categoryName = tostring(Menu.Categories[categoryIndex].name or "Category")
+            Menu.DrawText(panelX + (14 * scale), drawY + (itemHeight / 2) - (7 * scale), categoryName, 16, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, 0.98)
+
+            local chevron = ">"
+            local chevronWidth = Menu.GetTextWidth(chevron, 15)
+            Menu.DrawText(panelX + panelW - chevronWidth - (14 * scale), drawY + (itemHeight / 2) - (7 * scale), chevron, 15, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, selected and 1.0 or 0.82)
+        end
+    end
+
+    if totalCategories > 0 then
+        Menu.DrawScrollbar(x, bounds.itemsY, visibleCount * itemHeight, Menu.CurrentCategory - 1, totalCategories, true, width)
+    end
+end
+
+function Menu.DrawLoadingBar(alpha)
+    if alpha <= 0 then return end
+
+    local palette = Menu.GetThemePalette()
+    local screenWidth = 1920
+    local screenHeight = 1080
+    if Susano and Susano.GetScreenWidth and Susano.GetScreenHeight then
+        screenWidth = Susano.GetScreenWidth()
+        screenHeight = Susano.GetScreenHeight()
+    end
+
+    local scale = Menu.Scale or 1.0
+    local width = 320 * scale
+    local height = 96 * scale
+    local x = (screenWidth / 2) - (width / 2)
+    local y = screenHeight - (190 * scale)
+
+    Menu.DrawSoftShadow(x, y, width, height, 12 * scale, 0.20 * alpha, 8)
+    Menu.DrawFramedPanel(x, y, width, height, palette.panel2, 0.96 * alpha, palette.border, 0.45 * alpha, 12 * scale, 1)
+    Menu.DrawTopLine(x + (1 * scale), y + (1 * scale), width - (2 * scale), palette.accent, alpha)
+
+    local currentTime = GetGameTimer and GetGameTimer() or 0
+    local elapsedTime = Menu.LoadingStartTime and (currentTime - Menu.LoadingStartTime) or 0
+    local loadingText = elapsedTime < 1000 and "Injecting modules" or "Finishing setup"
+    local percentText = string.format("%.0f%%", Menu.LoadingProgress or 0.0)
+
+    Menu.DrawText(x + (18 * scale), y + (16 * scale), loadingText, 16, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, alpha)
+    Menu.DrawText(x + width - Menu.GetTextWidth(percentText, 14) - (18 * scale), y + (18 * scale), percentText, 14, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, alpha)
+
+    local barX = x + (18 * scale)
+    local barY = y + (54 * scale)
+    local barW = width - (36 * scale)
+    local barH = 12 * scale
+    local progress = uiClamp((Menu.LoadingProgress or 0.0) / 100.0, 0.0, 1.0)
+
+    Menu.DrawRoundedPanel(barX, barY, barW, barH, palette.track, 0.90 * alpha, barH / 2)
+    Menu.DrawRoundedPanel(barX, barY, math.max(barH / 2, barW * progress), barH, palette.accent, 0.96 * alpha, barH / 2)
+    Menu.DrawRoundedPanel(barX + (1 * scale), barY + (1 * scale), math.max((barH / 2) - (2 * scale), (barW * progress) - (2 * scale)), math.max(2 * scale, barH * 0.35), palette.white, 0.08 * alpha, (barH / 2) - 1)
+
+    Menu.DrawText(barX, barY + (18 * scale), "Please wait", 11, palette.soft.r / 255.0, palette.soft.g / 255.0, palette.soft.b / 255.0, alpha)
+end
+
+function Menu.GetFooterInfo()
+    local displayIndex = 1
+    local totalItems = 1
+    local sectionName = "Overview"
+
+    if Menu.OpenedCategory then
+        local category = Menu.Categories and Menu.Categories[Menu.OpenedCategory] or nil
+        if category then
+            sectionName = tostring(category.name or sectionName)
+            if category.tabs and category.tabs[Menu.CurrentTab] and category.tabs[Menu.CurrentTab].items then
+                displayIndex = Menu.CurrentItem
+                totalItems = #category.tabs[Menu.CurrentTab].items
+            end
+        end
+    else
+        displayIndex = math.max(1, (Menu.CurrentCategory or 2) - 1)
+        totalItems = math.max(1, (Menu.Categories and #Menu.Categories or 1) - 1)
+        if Menu.TopLevelTabs and Menu.TopLevelTabs[Menu.CurrentTopTab] then
+            sectionName = tostring(Menu.TopLevelTabs[Menu.CurrentTopTab].name or sectionName)
+        end
+    end
+
+    return sectionName, displayIndex, totalItems
+end
+
+function Menu.DrawFooter()
+    local palette = Menu.GetThemePalette()
+    local bounds = Menu.GetMenuBounds()
+    local scale = Menu.Scale or 1.0
+    local x = bounds.x
+    local footerY = bounds.footerY
+    local footerW = bounds.width
+    local footerH = bounds.footerHeight
+
+    Menu.DrawFramedPanel(x, footerY, footerW, footerH, palette.panel2, 0.96, palette.borderDim, 0.22, 10 * scale, 1)
+
+    local sectionName, displayIndex, totalItems = Menu.GetFooterInfo()
+    local leftText = "discord.gg/zP8MaFP9uM"
+    local centerText = sectionName .. " • " .. tostring(Menu.CurrentTheme or "Purple")
+    local rightText = string.format("%d/%d", displayIndex, totalItems)
+
+    Menu.DrawText(x + (14 * scale), footerY + (footerH / 2) - (6 * scale), leftText, 11, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, 0.98)
+
+    local centerWidth = Menu.GetTextWidth(centerText, 11)
+    Menu.DrawText(x + (footerW / 2) - (centerWidth / 2), footerY + (footerH / 2) - (6 * scale), centerText, 11, palette.soft.r / 255.0, palette.soft.g / 255.0, palette.soft.b / 255.0, 0.96)
+
+    local rightWidth = Menu.GetTextWidth(rightText, 11)
+    Menu.DrawText(x + footerW - rightWidth - (14 * scale), footerY + (footerH / 2) - (6 * scale), rightText, 11, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, 0.98)
+end
+
+function Menu.DrawKeySelector(alpha)
+    if alpha <= 0 then return end
+
+    local palette = Menu.GetThemePalette()
+    local screenWidth = 1920
+    local screenHeight = 1080
+    if Susano and Susano.GetScreenWidth and Susano.GetScreenHeight then
+        screenWidth = Susano.GetScreenWidth()
+        screenHeight = Susano.GetScreenHeight()
+    end
+
+    local scale = Menu.Scale or 1.0
+    local width = 420 * scale
+    local height = 108 * scale
+    local x = (screenWidth / 2) - (width / 2)
+    local y = screenHeight - (210 * scale)
+    local keyName = Menu.BindingItem and Menu.BindingKeyName or Menu.SelectedKeyName or "..."
+    local itemName = Menu.BindingItem and (Menu.BindingItem.name or "Option") or "Menu Toggle"
+
+    Menu.DrawSoftShadow(x, y, width, height, 12 * scale, 0.22 * alpha, 8)
+    Menu.DrawFramedPanel(x, y, width, height, palette.panel2, 0.96 * alpha, palette.border, 0.48 * alpha, 12 * scale, 1)
+    Menu.DrawTopLine(x + (1 * scale), y + (1 * scale), width - (2 * scale), palette.accent, alpha)
+
+    Menu.DrawText(x + (18 * scale), y + (16 * scale), Menu.SelectingBind and "Assign option key" or "Assign menu key", 16, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, alpha)
+    Menu.DrawText(x + (18 * scale), y + (38 * scale), "Press a key and confirm with Enter", 11, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, alpha)
+
+    local rowY = y + (64 * scale)
+    local rowH = 28 * scale
+    Menu.DrawFramedPanel(x + (18 * scale), rowY, width - (36 * scale), rowH, palette.panel3, 0.88 * alpha, palette.borderDim, 0.22 * alpha, 8 * scale, 1)
+    Menu.DrawText(x + (32 * scale), rowY + (rowH / 2) - (6 * scale), itemName, 12, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, alpha)
+
+    local boxW = 70 * scale
+    local boxH = 20 * scale
+    local boxX = x + width - boxW - (28 * scale)
+    local boxY = rowY + (rowH / 2) - (boxH / 2)
+    Menu.DrawFramedPanel(boxX, boxY, boxW, boxH, palette.panel4, 0.96 * alpha, palette.accent, 0.55 * alpha, boxH / 2, 1)
+    local keyW = Menu.GetTextWidth(keyName, 12)
+    Menu.DrawText(boxX + (boxW / 2) - (keyW / 2), boxY + (boxH / 2) - (6 * scale), keyName, 12, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, alpha)
+end
+
+function Menu.DrawKeybindsInterface(alpha)
+    if alpha <= 0 then return end
+
+    local activeBinds = {}
+    if Menu.Categories then
+        for _, category in ipairs(Menu.Categories) do
+            if category and category.tabs then
+                for _, tab in ipairs(category.tabs) do
+                    if tab and tab.items then
+                        for _, item in ipairs(tab.items) do
+                            if item and item.bindKey and item.bindKeyName and (item.type == "toggle" or item.type == "action") then
+                                table.insert(activeBinds, {
+                                    name = item.name or "Option",
+                                    keyName = item.bindKeyName,
+                                    isActive = item.type == "toggle" and (item.value == true) or nil
+                                })
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #activeBinds == 0 then
+        return
+    end
+
+    local palette = Menu.GetThemePalette()
+    local screenWidth = 1920
+    local screenHeight = 1080
+    if Susano and Susano.GetScreenWidth and Susano.GetScreenHeight then
+        screenWidth = Susano.GetScreenWidth()
+        screenHeight = Susano.GetScreenHeight()
+    end
+
+    local scale = Menu.Scale or 1.0
+    local rowHeight = 24 * scale
+    local width = 280 * scale
+    local height = 48 * scale + (#activeBinds * rowHeight)
+    local x = screenWidth - width - (22 * scale)
+    local y = 20 * scale
+
+    Menu.DrawSoftShadow(x, y, width, height, 12 * scale, 0.18 * alpha, 8)
+    Menu.DrawFramedPanel(x, y, width, height, palette.panel2, 0.94 * alpha, palette.border, 0.32 * alpha, 12 * scale, 1)
+    Menu.DrawTopLine(x + (1 * scale), y + (1 * scale), width - (2 * scale), palette.accent, alpha)
+    Menu.DrawText(x + (16 * scale), y + (14 * scale), "Keybinds", 14, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, alpha)
+
+    for index, bind in ipairs(activeBinds) do
+        local rowY = y + (38 * scale) + ((index - 1) * rowHeight)
+        local statusText = bind.isActive == nil and bind.keyName or (bind.isActive and "ON" or "OFF")
+        local statusColor = bind.isActive == nil and palette.muted or (bind.isActive and palette.accent or palette.borderDim)
+
+        Menu.DrawText(x + (16 * scale), rowY, bind.name .. " (" .. bind.keyName .. ")", 11, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, alpha)
+        local pillWidth = Menu.GetTextWidth(statusText, 10) + (18 * scale)
+        local pillX = x + width - pillWidth - (14 * scale)
+        Menu.DrawPill(pillX, rowY - (4 * scale), statusText, 10, palette.panel3, palette.borderDim, palette.text, statusColor)
+    end
+end
+
+function Menu.DrawBackground()
+    local palette = Menu.GetThemePalette()
+    local bounds = Menu.GetMenuBounds()
+    local scale = Menu.Scale or 1.0
+    local x = bounds.x
+    local y = bounds.y
+    local width = bounds.width
+    local height = bounds.totalHeight
+    local radius = 12 * scale
+
+    Menu.DrawSoftShadow(x + (4 * scale), y + (6 * scale), width - (8 * scale), height - (4 * scale), radius, 0.25, 10)
+    Menu.DrawFramedPanel(x, y, width, height, palette.panel, 0.92, palette.borderDim, 0.20, radius, 1)
+    Menu.DrawRoundedPanel(x + (1 * scale), y + bounds.bannerHeight - (18 * scale), width - (2 * scale), 22 * scale, palette.accent, 0.08, 10 * scale)
+    Menu.DrawRoundedPanel(x + (1 * scale), y + bounds.bannerHeight, width - (2 * scale), height - bounds.bannerHeight - (1 * scale), { r = 0, g = 0, b = 0 }, 0.26, radius - 1)
+
+    if Menu.ShowSnowflakes then
+        Menu.Particles = Menu.Particles or {}
+        for _, particle in ipairs(Menu.Particles) do
+            particle.y = particle.y + particle.speedY
+            particle.x = particle.x + particle.speedX
+            if particle.y > 1.0 then
+                particle.y = 0.0
+                particle.x = math.random(0, 100) / 100
+                particle.speedY = math.random(20, 100) / 10000
+                particle.speedX = math.random(-20, 20) / 10000
+            end
+
+            local px = x + (particle.x * width)
+            local py = y + (particle.y * height)
+            if px >= x and px <= x + width and py >= y and py <= y + height then
+                Menu.DrawRoundedPanel(px, py, particle.size, particle.size, palette.white, math.random(90, 180) / 255.0, particle.size)
+            end
+        end
+    end
+end
+
+function Menu.DrawInputWindow()
+    if not Menu.InputOpen then return end
+
+    local palette = Menu.GetThemePalette()
+    local screenWidth = 1920
+    local screenHeight = 1080
+    if Susano and Susano.GetScreenWidth and Susano.GetScreenHeight then
+        screenWidth = Susano.GetScreenWidth()
+        screenHeight = Susano.GetScreenHeight()
+    end
+
+    local scale = Menu.Scale or 1.0
+    local width = 380 * scale
+    local height = 150 * scale
+    local x = (screenWidth / 2) - (width / 2)
+    local y = (screenHeight / 2) - (height / 2)
+
+    Menu.DrawRoundedPanel(0, 0, screenWidth, screenHeight, { r = 0, g = 0, b = 0 }, 0.62, 0)
+    Menu.DrawSoftShadow(x, y, width, height, 12 * scale, 0.24, 10)
+    Menu.DrawFramedPanel(x, y, width, height, palette.panel2, 0.98, palette.border, 0.48, 12 * scale, 1)
+    Menu.DrawTopLine(x + (1 * scale), y + (1 * scale), width - (2 * scale), palette.accent, 1.0)
+
+    local titleText = Menu.InputTitle or "Input"
+    local subtitleText = Menu.InputSubtitle or "Enter text below"
+    Menu.DrawText(x + (20 * scale), y + (18 * scale), titleText, 18, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, 1.0)
+    Menu.DrawText(x + (20 * scale), y + (42 * scale), subtitleText, 11, palette.muted.r / 255.0, palette.muted.g / 255.0, palette.muted.b / 255.0, 0.98)
+
+    local boxX = x + (20 * scale)
+    local boxY = y + (74 * scale)
+    local boxW = width - (40 * scale)
+    local boxH = 34 * scale
+    Menu.DrawFramedPanel(boxX, boxY, boxW, boxH, palette.panel3, 0.94, palette.borderDim, 0.24, 8 * scale, 1)
+
+    local displayText = Menu.InputText or ""
+    local canBlink = (GetGameTimer and math.floor(GetGameTimer() / 500) % 2 == 0) or false
+    if canBlink then
+        displayText = displayText .. "|"
+    end
+    if string.len(displayText) > 32 then
+        displayText = "..." .. string.sub(displayText, -32)
+    end
+
+    Menu.DrawText(boxX + (12 * scale), boxY + (boxH / 2) - (7 * scale), displayText, 14, palette.text.r / 255.0, palette.text.g / 255.0, palette.text.b / 255.0, 1.0)
+    Menu.DrawText(x + (20 * scale), y + height - (24 * scale), "Enter to confirm • Esc to close", 10, palette.soft.r / 255.0, palette.soft.g / 255.0, palette.soft.b / 255.0, 0.95)
+
+    if Susano and Susano.GetAsyncKeyState then
+        if Menu.IsKeyJustPressed(0x0D) then
+            Menu.InputOpen = false
+            if Menu.InputCallback then
+                Menu.InputCallback(Menu.InputText)
+            end
+        end
+
+        if Menu.IsKeyJustPressed(0x08) then
+            if string.len(Menu.InputText) > 0 then
+                Menu.InputText = string.sub(Menu.InputText, 1, -2)
+            end
+        end
+
+        if Menu.IsKeyJustPressed(0x1B) then
+            Menu.InputOpen = false
+        end
+
+        local shiftPressed = false
+        if Susano.GetAsyncKeyState(0x10) or Susano.GetAsyncKeyState(0xA0) or Susano.GetAsyncKeyState(0xA1) then
+            shiftPressed = true
+        end
+
+        for i = 0x41, 0x5A do
+            if Menu.IsKeyJustPressed(i) then
+                local char = string.char(i)
+                if not shiftPressed then
+                    char = string.lower(char)
+                end
+                Menu.InputText = Menu.InputText .. char
+            end
+        end
+
+        for i = 0x30, 0x39 do
+            if Menu.IsKeyJustPressed(i) then
+                Menu.InputText = Menu.InputText .. string.char(i)
+            end
+        end
+
+        if Menu.IsKeyJustPressed(0x20) then
+            Menu.InputText = Menu.InputText .. " "
+        end
+
+        if Menu.IsKeyJustPressed(0xBD) then
+            if shiftPressed then
+                Menu.InputText = Menu.InputText .. "_"
+            else
+                Menu.InputText = Menu.InputText .. "-"
+            end
+        end
+    end
+end
+
+
+-- ============================================
+-- Stream Proof + Discord options patch
+-- ============================================
+Menu.StreamProof = Menu.StreamProof or false
+Menu.DiscordRPC = Menu.DiscordRPC ~= false
+Menu.DiscordInvite = Menu.DiscordInvite or "https://discord.gg/zP8MaFP9uM"
+
+function Menu.HasItemByName(items, itemName)
+    if not items then return false end
+    for _, existing in ipairs(items) do
+        if existing and tostring(existing.name or "") == tostring(itemName or "") then
+            return true
+        end
+    end
+    return false
+end
+
+function Menu.FindSettingsGeneralTab()
+    if not Menu.Categories then return nil end
+    for _, category in ipairs(Menu.Categories) do
+        if category and tostring(category.name or "") == "Settings" and category.tabs then
+            for _, tab in ipairs(category.tabs) do
+                if tab and tostring(tab.name or "") == "General" then
+                    tab.items = tab.items or {}
+                    return tab
+                end
+            end
+        end
+    end
+    return nil
+end
+
+function Menu.EnsureStreamProofDiscordItems()
+    local generalTab = Menu.FindSettingsGeneralTab()
+    if not generalTab then
+        return false
+    end
+
+    local items = generalTab.items
+
+    if not Menu.HasItemByName(items, "Stream Proof") then
+        table.insert(items, {
+            name = "Stream Proof",
+            type = "toggle",
+            value = Menu.StreamProof,
+            onClick = function(value)
+                Menu.StreamProof = value == true
+                print("Stream Proof: " .. tostring(Menu.StreamProof))
+            end
+        })
+    end
+
+    if not Menu.HasItemByName(items, "Discord RPC") then
+        table.insert(items, {
+            name = "Discord RPC",
+            type = "toggle",
+            value = Menu.DiscordRPC,
+            onClick = function(value)
+                Menu.DiscordRPC = value ~= false
+                print("Discord RPC: " .. tostring(Menu.DiscordRPC))
+            end
+        })
+    end
+
+    if not Menu.HasItemByName(items, "Discord Invite") then
+        table.insert(items, {
+            name = "Discord Invite",
+            type = "action",
+            onClick = function()
+                if Menu.OpenInput then
+                    Menu.OpenInput("Discord Invite", "Copy or edit the invite below")
+                    Menu.InputText = tostring(Menu.DiscordInvite or "")
+                end
+                print("Discord Invite: " .. tostring(Menu.DiscordInvite))
+            end
+        })
+    end
+
+    return true
+end
+
+local _Menu_OriginalDrawFooter_Base = Menu.DrawFooter
+function Menu.DrawFooter()
+    _Menu_OriginalDrawFooter_Base()
+
+    local bounds = Menu.GetMenuBounds and Menu.GetMenuBounds() or nil
+    if not bounds then return end
+
+    local palette = Menu.GetThemePalette and Menu.GetThemePalette() or nil
+    if not palette then return end
+
+    local scale = Menu.Scale or 1.0
+    local pillText = Menu.StreamProof and "STREAM PROOF ON" or "STREAM PROOF OFF"
+    local pillFill = Menu.StreamProof and palette.accentDark or palette.panel3
+    local pillBorder = Menu.StreamProof and palette.border or palette.borderDim
+    local pillAccent = Menu.StreamProof and palette.accent or palette.soft
+
+    local pillX = bounds.x + (14 * scale)
+    local pillY = bounds.footerY - (26 * scale)
+
+    if Menu.DrawPill then
+        Menu.DrawPill(pillX, pillY, pillText, 10, pillFill, pillBorder, palette.text, pillAccent)
+    end
+end
+
+CreateThread(function()
+    while true do
+        pcall(function()
+            Menu.EnsureStreamProofDiscordItems()
+        end)
+        Wait(1000)
+    end
+end)
+
+
+Menu.StreamProofStatus = Menu.StreamProofStatus or "inactive"
+Menu.StreamProofBackend = Menu.StreamProofBackend or "none"
+Menu._streamProofLastApplied = nil
+
+function Menu._TrySusanoBoolCall(fnName, value)
+    if not Susano then return false end
+    local fn = Susano[fnName]
+    if type(fn) ~= "function" then return false end
+    local ok = pcall(fn, value)
+    return ok == true
+end
+
+function Menu.ApplyStreamProofState(forceValue)
+    local desired = forceValue
+    if desired == nil then
+        desired = Menu.StreamProof == true
+    end
+
+    if Menu._streamProofLastApplied == desired then
+        return Menu.StreamProofBackend, Menu.StreamProofStatus
+    end
+
+    Menu._streamProofLastApplied = desired
+    Menu.StreamProof = desired == true
+
+    local backend = "none"
+    local status = desired and "requested" or "inactive"
+
+    if desired then
+        if Menu._TrySusanoBoolCall("SetStreamProof", true) then
+            backend = "SetStreamProof"
+            status = "native"
+        elseif Menu._TrySusanoBoolCall("HideFromCapture", true) then
+            backend = "HideFromCapture"
+            status = "native"
+        elseif Menu._TrySusanoBoolCall("SetWindowDisplayAffinity", true) then
+            backend = "SetWindowDisplayAffinity"
+            status = "native"
+        elseif Menu._TrySusanoBoolCall("SetCaptureProtection", true) then
+            backend = "SetCaptureProtection"
+            status = "native"
+        elseif Menu._TrySusanoBoolCall("EnableOverlay", false) then
+            backend = "EnableOverlay(false)"
+            status = "fallback_overlay_off"
+        else
+            backend = "render_only"
+            status = "fallback_render_only"
+        end
+    else
+        if Menu._TrySusanoBoolCall("SetStreamProof", false) then
+            backend = "SetStreamProof"
+            status = "disabled"
+        elseif Menu._TrySusanoBoolCall("HideFromCapture", false) then
+            backend = "HideFromCapture"
+            status = "disabled"
+        elseif Menu._TrySusanoBoolCall("SetWindowDisplayAffinity", false) then
+            backend = "SetWindowDisplayAffinity"
+            status = "disabled"
+        elseif Menu._TrySusanoBoolCall("SetCaptureProtection", false) then
+            backend = "SetCaptureProtection"
+            status = "disabled"
+        elseif type(Susano) == "table" and type(Susano.EnableOverlay) == "function" then
+            if Menu.EditorMode then
+                pcall(Susano.EnableOverlay, true)
+                backend = "EnableOverlay(true)"
+            else
+                pcall(Susano.EnableOverlay, false)
+                backend = "EnableOverlay(false)"
+            end
+            status = "disabled"
+        end
+    end
+
+    Menu.StreamProofBackend = backend
+    Menu.StreamProofStatus = status
+    return backend, status
+end
+
+local _Menu_OriginalRender = Menu.Render
+function Menu.Render()
+    Menu.ApplyStreamProofState(Menu.StreamProof)
+
+    if Menu.StreamProof and Menu.StreamProofStatus == "fallback_render_only" then
+        if not (Susano and Susano.BeginFrame) then
+            return
+        end
+
+        local dt = 0.016
+        if GetFrameTime then
+            dt = GetFrameTime()
+        end
+        local animSpeed = 5.0 * dt
+
+        if Menu.IsLoading then
+            Menu.LoadingBarAlpha = math.min(1.0, Menu.LoadingBarAlpha + animSpeed)
+        else
+            Menu.LoadingBarAlpha = math.max(0.0, Menu.LoadingBarAlpha - animSpeed)
+        end
+
+        if Menu.SelectingKey or Menu.SelectingBind then
+            Menu.KeySelectorAlpha = math.min(1.0, Menu.KeySelectorAlpha + animSpeed)
+        else
+            Menu.KeySelectorAlpha = math.max(0.0, Menu.KeySelectorAlpha - animSpeed)
+        end
+
+        if Menu.ShowKeybinds then
+            Menu.KeybindsInterfaceAlpha = math.min(1.0, Menu.KeybindsInterfaceAlpha + animSpeed)
+        else
+            Menu.KeybindsInterfaceAlpha = math.max(0.0, Menu.KeybindsInterfaceAlpha - animSpeed)
+        end
+
+        Susano.BeginFrame()
+
+        if Menu.OnRender then
+            local success, err = pcall(Menu.OnRender)
+            if not success then
+            end
+        end
+
+        if Susano.SubmitFrame then
+            Susano.SubmitFrame()
+        end
+
+        if Susano.ResetFrame then
+            Susano.ResetFrame()
+        end
+        return
+    end
+
+    return _Menu_OriginalRender()
+end
+
+local _Menu_OriginalDrawFooter_StreamProof = Menu.DrawFooter
+function Menu.DrawFooter()
+    _Menu_OriginalDrawFooter_StreamProof()
+
+    local bounds = Menu.GetMenuBounds and Menu.GetMenuBounds() or nil
+    if not bounds then return end
+
+    local palette = Menu.GetThemePalette and Menu.GetThemePalette() or nil
+    if not palette then return end
+
+    local scale = Menu.Scale or 1.0
+    local streamText = Menu.StreamProof and "STREAM PROOF ON" or "STREAM PROOF OFF"
+    local modeText = "backend: " .. tostring(Menu.StreamProofBackend or "none")
+
+    local fill = Menu.StreamProof and palette.accentDark or palette.panel3
+    local border = Menu.StreamProof and palette.border or palette.borderDim
+    local accent = Menu.StreamProof and palette.accent or palette.soft
+
+    local pillX = bounds.x + (14 * scale)
+    local pillY = bounds.footerY - (26 * scale)
+
+    if Menu.DrawPill then
+        Menu.DrawPill(pillX, pillY, streamText, 10, fill, border, palette.text, accent)
+        Menu.DrawPill(pillX + (136 * scale), pillY, modeText, 9, palette.panelGlass or palette.panel2, palette.borderDim, palette.muted, accent)
+    end
+end
+
+
+-- ============================================
+-- Online players + search + popup + teleport + troll
+-- ============================================
+Menu.PlayerList = Menu.PlayerList or {
+    enabled = true,
+    refreshInterval = 2000,
+    lastRefresh = 0,
+    players = {},
+    filteredPlayers = {},
+    searchQuery = ""
+}
+
+Menu.PlayerInfoPopup = Menu.PlayerInfoPopup or {
+    open = false,
+    player = nil
+}
+
+function Menu.EnsureOnlineCategoryInList(categoryList)
+    if type(categoryList) ~= "table" then return false end
+
+    for _, cat in ipairs(categoryList) do
+        if cat and tostring(cat.name or "") == "Online" then
+            cat.hasTabs = true
+            cat.tabs = cat.tabs or {}
+            local foundPlayers = false
+            for _, tab in ipairs(cat.tabs) do
+                if tab and tostring(tab.name or "") == "Players" then
+                    foundPlayers = true
+                    tab.items = tab.items or {
+                        { name = "Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
+                        { name = "Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
+                        { isSeparator = true, separatorText = "ONLINE PLAYERS" },
+                        { name = "Loading...", type = "action", onClick = function() end }
+                    }
+                end
+            end
+            if not foundPlayers then
+                table.insert(cat.tabs, {
+                    name = "Players",
+                    items = {
+                        { name = "Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
+                        { name = "Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
+                        { isSeparator = true, separatorText = "ONLINE PLAYERS" },
+                        { name = "Loading...", type = "action", onClick = function() end }
+                    }
+                })
+            end
+            return true
+        end
+    end
+
+    table.insert(categoryList, {
+        name = "Online",
+        hasTabs = true,
+        tabs = {
+            {
+                name = "Players",
+                items = {
+                    { name = "Search Players", type = "action", onClick = function() Menu.OpenPlayerSearch() end },
+                    { name = "Clear Search", type = "action", onClick = function() Menu.PlayerList.searchQuery = "" Menu.ApplyPlayerSearch() Menu.RefreshOnlinePlayers() end },
+                    { isSeparator = true, separatorText = "ONLINE PLAYERS" },
+                    { name = "Loading...", type = "action", onClick = function() end }
+                }
+            }
+        }
+    })
+    return true
+end
+
+function Menu.EnsureOnlineCategory()
+    if Menu.TopLevelTabs then
+        for _, top in ipairs(Menu.TopLevelTabs) do
+            if top and type(top.categories) == "table" then
+                Menu.EnsureOnlineCategoryInList(top.categories)
+            end
+        end
+    end
+    if Menu.Categories then
+        local list = {}
+        for i = 2, #Menu.Categories do
+            list[#list + 1] = Menu.Categories[i]
+        end
+        if #list > 0 then
+            Menu.EnsureOnlineCategoryInList(list)
+            local rebuilt = { Menu.Categories[1] or { name = "Menu" } }
+            for _, cat in ipairs(list) do rebuilt[#rebuilt + 1] = cat end
+            Menu.Categories = rebuilt
+        end
+    end
+end
+
+function Menu.GetOnlinePlayers()
+    local players = {}
+    if not GetActivePlayers then return players end
+
+    for _, player in ipairs(GetActivePlayers()) do
+        local clientId = player
+        local serverId = player
+        if GetPlayerServerId then
+            serverId = GetPlayerServerId(player)
+        end
+
+        local playerName = "Unknown"
+        if GetPlayerName then
+            playerName = GetPlayerName(player) or ("Player " .. tostring(serverId))
+        end
+
+        players[#players + 1] = {
+            clientId = clientId,
+            id = serverId,
+            name = playerName
+        }
+    end
+
+    table.sort(players, function(a, b)
+        return tonumber(a.id or 0) < tonumber(b.id or 0)
+    end)
+
+    return players
+end
+
+function Menu.DoesPlayerMatchSearch(player, query)
+    if not query or query == "" then return true end
+    local q = string.lower(tostring(query))
+    local name = string.lower(tostring(player.name or ""))
+    local id = string.lower(tostring(player.id or ""))
+    return string.find(name, q, 1, true) ~= nil or string.find(id, q, 1, true) ~= nil
+end
+
+function Menu.ApplyPlayerSearch()
+    Menu.PlayerList.filteredPlayers = {}
+    for _, p in ipairs(Menu.PlayerList.players or {}) do
+        if Menu.DoesPlayerMatchSearch(p, Menu.PlayerList.searchQuery) then
+            table.insert(Menu.PlayerList.filteredPlayers, p)
+        end
+    end
+end
+
+function Menu.OpenPlayerSearch()
+    if not Menu.OpenInput then return end
+    Menu.OpenInput("Player Search", "Enter player name or id", function(text)
+        Menu.PlayerList.searchQuery = tostring(text or "")
+        Menu.ApplyPlayerSearch()
+        Menu.RefreshOnlinePlayers()
+    end)
+    Menu.InputText = tostring(Menu.PlayerList.searchQuery or "")
+end
+
+function Menu.GetPlayerPedSafe(playerClientId)
+    if not GetPlayerPed then return nil end
+    local ped = GetPlayerPed(playerClientId)
+    if ped and ped ~= 0 then return ped end
+    return nil
+end
+
+function Menu.TeleportToPlayer(playerData)
+    if not playerData then return end
+    local targetPed = Menu.GetPlayerPedSafe(playerData.clientId)
+    if not targetPed then
+        print("Teleport failed: target ped not found")
+        return
+    end
+    if not PlayerPedId or not GetEntityCoords or not SetEntityCoords then
+        print("Teleport failed: natives missing")
+        return
+    end
+    local myPed = PlayerPedId()
+    if not myPed or myPed == 0 then return end
+    local coords = GetEntityCoords(targetPed)
+    if not coords then return end
+    local x = coords.x or coords[1] or 0.0
+    local y = coords.y or coords[2] or 0.0
+    local z = coords.z or coords[3] or 0.0
+    SetEntityCoords(myPed, x, y, z + 1.0, false, false, false, false)
+end
+
+function Menu.TrollPlayer(playerData)
+    if not playerData then return end
+    if not GetPlayerFromServerId then return end
+
+    local target = GetPlayerFromServerId(playerData.id)
+    if target == -1 then
+        print("Player not found!")
+        return
+    end
+
+    if not GetPlayerPed or not GetEntityCoords or not RequestModel or not HasModelLoaded or not CreateObject or not AttachEntityToEntity or not GetPedBoneIndex then
+        print("Troll failed: natives missing")
+        return
+    end
+
+    local ped = GetPlayerPed(target)
+    if not ped or ped == 0 then return end
+    local coords = GetEntityCoords(ped)
+    local x = coords.x or coords[1] or 0.0
+    local y = coords.y or coords[2] or 0.0
+    local z = coords.z or coords[3] or 0.0
+    local model = `prop_container_01a`
+
+    RequestModel(model)
+    while not HasModelLoaded(model) do
+        Wait(10)
+    end
+
+    local obj = CreateObject(model, x, y, z, true, true, true)
+    AttachEntityToEntity(obj, ped, GetPedBoneIndex(ped, 0), 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, true, true, false, true, 1, true)
+end
+
+
+-- =========================
+-- GUN NPC ATTACK FUNCTION
+-- =========================
+
+function EnumerateVehicles()
+    return coroutine.wrap(function()
+        local handle, vehicle = FindFirstVehicle()
+        local success = handle ~= -1 and vehicle ~= nil
+        if not success then
+            EndFindVehicle(handle)
+            return
+        end
+        repeat
+            coroutine.yield(vehicle)
+            success, vehicle = FindNextVehicle(handle)
+        until not success
+        EndFindVehicle(handle)
+    end)
+end
+
+
+function Menu.RampAllVehicles()
+    if not EnumerateVehicles or not CreateObject or not DoesEntityExist then return end
+
+    for vehicle in EnumerateVehicles() do
+        if DoesEntityExist(vehicle) then
+            local ramp = CreateObject(GetHashKey("stt_prop_stunt_track_start"), 0, 0, 0, true, true, true)
+
+            if NetworkRequestControlOfEntity then
+                NetworkRequestControlOfEntity(vehicle)
+            end
+
+            AttachEntityToEntity(
+                ramp, vehicle, 0,
+                0.0, -1.0, 0.0,
+                0.0, 0.0, 0.0,
+                true, true, false, true, 1, true
+            )
+
+            if NetworkRequestControlOfEntity then
+                NetworkRequestControlOfEntity(ramp)
+            end
+            if SetEntityAsMissionEntity then
+                SetEntityAsMissionEntity(ramp, true, true)
+            end
+        end
+    end
+end
+
+function Menu.FIBAllVehicles()
+    if not EnumerateVehicles or not CreateObject or not DoesEntityExist then return end
+
+    for vehicle in EnumerateVehicles() do
+        if DoesEntityExist(vehicle) then
+            local building = CreateObject(-1404869155, 0, 0, 0, true, true, true)
+
+            if NetworkRequestControlOfEntity then
+                NetworkRequestControlOfEntity(vehicle)
+            end
+
+            AttachEntityToEntity(
+                building, vehicle, 0,
+                0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0,
+                true, true, false, true, 1, true
+            )
+
+            if NetworkRequestControlOfEntity then
+                NetworkRequestControlOfEntity(building)
+            end
+            if SetEntityAsMissionEntity then
+                SetEntityAsMissionEntity(building, true, true)
+            end
+        end
+    end
+end
+
+function Menu.GunNPCAttackPlayer(playerData)
+    if not playerData then return end
+    if not GetPlayerFromServerId then return end
+
+    local target = GetPlayerFromServerId(playerData.id)
+    if target == -1 then
+        print("Gun NPC attack failed: player not found")
+        return
+    end
+
+    if not GetPlayerPed or not GetEntityCoords or not RequestModel or not HasModelLoaded or not CreatePed or not GiveWeaponToPed or not TaskCombatPed then
+        print("Gun NPC attack failed: natives missing")
+        return
+    end
+
+    local ped = GetPlayerPed(target)
+    if not ped or ped == 0 then return end
+
+    local coords = GetEntityCoords(ped)
+    local x = coords.x or coords[1] or 0.0
+    local y = coords.y or coords[2] or 0.0
+    local z = coords.z or coords[3] or 0.0
+
+    local model = `g_m_y_lost_01`
+    local weapon = `WEAPON_PISTOL`
+
+    RequestModel(model)
+    while not HasModelLoaded(model) do
+        Wait(10)
+    end
+
+    for i = 1, 3 do
+        local spawnX = x + math.random(-4, 4)
+        local spawnY = y + math.random(-4, 4)
+        local npc = CreatePed(4, model, spawnX, spawnY, z, 0.0, true, true)
+
+        if npc and npc ~= 0 then
+            GiveWeaponToPed(npc, weapon, 250, false, true)
+
+            if SetPedCombatAttributes then
+                SetPedCombatAttributes(npc, 46, true)
+                SetPedCombatAttributes(npc, 5, true)
+            end
+            if SetPedCombatAbility then SetPedCombatAbility(npc, 2) end
+            if SetPedCombatRange then SetPedCombatRange(npc, 2) end
+            if SetPedCombatMovement then SetPedCombatMovement(npc, 2) end
+            if SetPedAccuracy then SetPedAccuracy(npc, 70) end
+            if SetPedDropsWeaponsWhenDead then SetPedDropsWeaponsWhenDead(npc, false) end
+            if SetPedAsEnemy then SetPedAsEnemy(npc, true) end
+
+            TaskCombatPed(npc, ped, 0, 16)
+        end
+    end
+end
+
+function Menu.OpenPlayerInfo(playerData)
+    if not playerData then return end
+    Menu.PlayerList = Menu.PlayerList or {}
+    Menu.PlayerList.selectedPlayer = playerData
+    Menu.PlayerList.submenu = nil
+    Menu.PlayerInfoPopup.open = false
+    Menu.PlayerInfoPopup.player = nil
+    Menu.RefreshOnlinePlayers()
+end
+
+function Menu.ClosePlayerInfo()
+    Menu.PlayerList = Menu.PlayerList or {}
+    Menu.PlayerList.selectedPlayer = nil
+    Menu.PlayerList.submenu = nil
+    Menu.PlayerInfoPopup.open = false
+    Menu.PlayerInfoPopup.player = nil
+    Menu.RefreshOnlinePlayers()
+end
+
+function Menu.RefreshOnlinePlayers()
+    local ok, result = pcall(Menu.GetOnlinePlayers)
+    if not ok or not result then return end
+
+    Menu.PlayerList = Menu.PlayerList or {}
+    Menu.PlayerList.players = result
+    Menu.ApplyPlayerSearch()
+
+    local selectedPlayer = Menu.PlayerList.selectedPlayer
+    if selectedPlayer then
+        if Menu.PlayerList.submenu == "particleeffects" then
+            items = Menu.BuildParticleLoopItems(selectedPlayer)
+        else
+            local coordText = "Coords: N/A"
+            local ped = Menu.GetPlayerPedSafe and Menu.GetPlayerPedSafe(selectedPlayer.clientId) or nil
+            if ped and GetEntityCoords then
+                local coords = GetEntityCoords(ped)
+                if coords then
+                    local cx = coords.x or coords[1] or 0.0
+                    local cy = coords.y or coords[2] or 0.0
+                    local cz = coords.z or coords[3] or 0.0
+                    coordText = string.format("Coords: %.2f, %.2f, %.2f", cx, cy, cz)
+                end
+            end
+
+            items = {
+                {
+                    name = "Back To Player List",
+                    type = "action",
+                    onClick = function()
+                        Menu.ClosePlayerInfo()
+                    end
+                },
+                {
+                    name = "Refresh Selected Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.RefreshOnlinePlayers()
+                    end
+                },
+                {
+                    isSeparator = true,
+                    separatorText = "[" .. tostring(selectedPlayer.id or "?") .. "] " .. tostring(selectedPlayer.name or "Unknown")
+                },
+                { name = "Name: " .. tostring(selectedPlayer.name or "Unknown"), type = "action", onClick = function() end },
+                { name = "Server ID: " .. tostring(selectedPlayer.id or "N/A"), type = "action", onClick = function() end },
+                { name = "Client ID: " .. tostring(selectedPlayer.clientId or "N/A"), type = "action", onClick = function() end },
+                { name = coordText, type = "action", onClick = function() end },
+                {
+                    name = "Teleport To Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.TeleportToPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Troll Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.TrollPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Gun NPC Attack",
+                    type = "action",
+                    onClick = function()
+                        Menu.GunNPCAttackPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Ramp All Vehicles",
+                    type = "action",
+                    onClick = function()
+                        Menu.RampAllVehicles()
+                    end
+                },
+                {
+                    name = "FIB Building All Vehicles",
+                    type = "action",
+                    onClick = function()
+                        Menu.FIBAllVehicles()
+                    end
+                },
+                {
+                    name = "Magnet Cars",
+                    type = "action",
+                    onClick = function()
+                        Menu.MagnetCars()
+                    end
+                },
+                {
+                    name = "Flip All Vehicles",
+                    type = "action",
+                    onClick = function()
+                        Menu.FlipAllVehicles()
+                    end
+                },
+                {
+                    name = "Spin Cars Tornado",
+                    type = "action",
+                    onClick = function()
+                        Menu.SpinCarsTornado()
+                    end
+                },
+                {
+                    name = "Particle Effects On Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.PlayerList.submenu = "particleeffects"
+                        Menu.RefreshOnlinePlayers()
+                    end
+                },
+                {
+                    name = Menu.IsPiggybacking and "Stop Piggyback" or "Piggyback On Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.TogglePiggybackOnPlayer(selectedPlayer)
+                        Menu.RefreshOnlinePlayers()
+                    end
+                },
+                {
+                    name = "HEX Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.HEXPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Launch Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.LaunchPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Clone NPC Attack",
+                    type = "action",
+                    onClick = function()
+                        Menu.CloneNPCAttackPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Freeze Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.FreezePlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Vehicle Rain On Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.VehicleRainOnPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    
+                {
+                    name = "Explode Loop",
+                    type = "action",
+                    onClick = function()
+                        Menu.ExplodeLoop(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Tornado Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.TornadoPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Magnet Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.MagnetPlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Ragdoll Spam",
+                    type = "action",
+                    onClick = function()
+                        Menu.RagdollSpam(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Sound Spam",
+                    type = "action",
+                    onClick = function()
+                        Menu.SoundSpam(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Admin Troll",
+                    type = "action",
+                    onClick = function()
+                        Menu.AdminTroll(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Screen Effects Troll",
+                    type = "action",
+                    onClick = function()
+                        Menu.ScreenEffectsTroll(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Clone Army",
+                    type = "action",
+                    onClick = function()
+                        Menu.CloneArmy(selectedPlayer)
+                    end
+                },
+                {
+                    name = "Cage Player",
+                    type = "action",
+                    onClick = function()
+                        Menu.CagePlayer(selectedPlayer)
+                    end
+                },
+                {
+                    name = Menu.HexAllIncludeSelf and "HEX All Players (Skip Self)" or "HEX All Players",
+                    type = "action",
+                    onClick = function()
+                        Menu.HEXAllPlayers()
+                    end
+                },
+                {
+                    name = "Toggle HEX Include Self",
+                    type = "toggle",
+                    value = Menu.HexAllIncludeSelf,
+                    onClick = function(value)
+                        Menu.HexAllIncludeSelf = value == true
+                        Menu.RefreshOnlinePlayers()
+                    end
+                }
+            }
+        end
+    else
+        local shownPlayers = Menu.PlayerList.filteredPlayers or {}
+
+        items = {
+            {
+                name = "Search Players",
+                type = "action",
+                onClick = function()
+                    Menu.OpenPlayerSearch()
+                end
+            },
+            {
+                name = "Clear Search",
+                type = "action",
+                onClick = function()
+                    Menu.PlayerList.searchQuery = ""
+                    Menu.ApplyPlayerSearch()
+                    Menu.RefreshOnlinePlayers()
+                end
+            },
+            {
+                isSeparator = true,
+                separatorText = (#tostring(Menu.PlayerList.searchQuery or "") > 0) and ("RESULTS: " .. tostring(Menu.PlayerList.searchQuery)) or "ONLINE PLAYERS"
+            }
+        }
+
+        for _, p in ipairs(shownPlayers) do
+            table.insert(items, {
+                name = "[" .. tostring(p.id) .. "] " .. tostring(p.name),
+                type = "action",
+                onClick = function()
+                    Menu.OpenPlayerInfo(p)
+                end
+            })
+        end
+
+        if #shownPlayers == 0 then
+            table.insert(items, {
+                name = "No players found",
+                type = "action",
+                onClick = function() end
+            })
+        end
+    end
+
+    local function updateList(categoryList)
+        if type(categoryList) ~= "table" then return end
+        for _, cat in ipairs(categoryList) do
+            if cat and tostring(cat.name or "") == "Online" and cat.tabs then
+                for _, tab in ipairs(cat.tabs) do
+                    if tab and tostring(tab.name or "") == "Players" then
+                        tab.items = items
+                    end
+                end
+            end
+        end
+    end
+
+    if Menu.TopLevelTabs then
+        for _, top in ipairs(Menu.TopLevelTabs) do
+            if top and top.categories then updateList(top.categories) end
+        end
+    end
+    if Menu.Categories then
+        updateList(Menu.Categories)
+    end
+end
+
+function Menu.DrawPlayerInfoPopup()
+    return
+end
+
+function Menu.HandlePlayerInfoPopupInput()
+    return false
+end
+
+local _Menu_OriginalUpdateCategoriesFromTopTab_Online = Menu.UpdateCategoriesFromTopTab
+function Menu.UpdateCategoriesFromTopTab()
+    _Menu_OriginalUpdateCategoriesFromTopTab_Online()
+    pcall(function()
+        Menu.EnsureOnlineCategory()
+        Menu.RefreshOnlinePlayers()
+    end)
+end
+
+local _Menu_OriginalHandleInput_Online = Menu.HandleInput
+function Menu.HandleInput()
+    if Menu.HandlePlayerInfoPopupInput and Menu.HandlePlayerInfoPopupInput() then
+        return
+    end
+    return _Menu_OriginalHandleInput_Online()
+end
+
+local _Menu_OriginalRender_Online = Menu.Render
+function Menu.Render()
+    if Menu.Visible then
+        pcall(function()
+            Menu.EnsureOnlineCategory()
+            if Menu.PlayerList and #(Menu.PlayerList.players or {}) == 0 then
+                Menu.RefreshOnlinePlayers()
+            end
+        end)
+    end
+
+    local result = _Menu_OriginalRender_Online()
+    if Menu.PlayerInfoPopup and Menu.PlayerInfoPopup.open and Menu.DrawPlayerInfoPopup then
+        pcall(Menu.DrawPlayerInfoPopup)
+    end
+    return result
+end
+
+CreateThread(function()
+    while true do
+        pcall(function()
+            Menu.EnsureOnlineCategory()
+            if Menu.PlayerList and Menu.PlayerList.enabled then
+                local now = GetGameTimer and GetGameTimer() or 0
+                if now - (Menu.PlayerList.lastRefresh or 0) >= (Menu.PlayerList.refreshInterval or 2000) then
+                    Menu.PlayerList.lastRefresh = now
+                    Menu.RefreshOnlinePlayers()
+                end
+            end
+        end)
+        Wait(1000)
+    end
+end)
+
+Menu.ApplyTheme(Menu.CurrentTheme or "Purple")
+Menu.ApplyStreamProofState(Menu.StreamProof)
+
+return Menu
